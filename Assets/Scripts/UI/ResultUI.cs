@@ -1,6 +1,5 @@
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 using TMPro;
 using System.Collections;
 
@@ -64,33 +63,22 @@ public class ResultUI : MonoBehaviour
     private IEnumerator RevealResult(GradeSystem.FinalGrade grade, float score, string poopName)
     {
         yield return new WaitForSeconds(revealDelay);
-
         if (resultPanel != null) resultPanel.SetActive(true);
 
-        Color gradeColor  = GradeSystem.Instance?.GetGradeColor(grade) ?? Color.white;
+        Color gradeColor   = GradeSystem.Instance?.GetGradeColor(grade) ?? Color.white;
         string description = GradeSystem.Instance?.GetPoopDescription(grade) ?? "";
 
-        if (gradeText != null)
-        {
-            gradeText.text  = GradeSystem.Instance?.GetGradeText(grade) ?? "B";
-            gradeText.color = gradeColor;
-        }
-        if (poopNameText != null)
-        {
-            poopNameText.text  = poopName;
-            poopNameText.color = gradeColor;
-        }
-        if (descriptionText != null)
-            descriptionText.text = description;
-        if (scoreText != null)
-            scoreText.text = $"{score:F0} pts";
+        if (gradeText != null)       { gradeText.text = GradeSystem.Instance?.GetGradeText(grade) ?? "B"; gradeText.color = gradeColor; }
+        if (poopNameText != null)    { poopNameText.text = poopName; poopNameText.color = gradeColor; }
+        if (descriptionText != null) descriptionText.text = description;
+        if (scoreText != null)       scoreText.text = $"{score:F0} pts";
 
         float healthRatio  = HealthManager.Instance?.HealthRatio ?? 0f;
         int tailCount      = FindFirstObjectByType<TailChain>()?.SegmentCount ?? 0;
         int nutrientCount  = GradeSystem.Instance?.NutrientCount ?? 0;
 
-        if (healthScoreText  != null) healthScoreText.text  = $"Digestion Health  {healthRatio * 100f:F0}";
-        if (tailScoreText    != null) tailScoreText.text    = $"Food Absorbed     {tailCount}";
+        if (healthScoreText   != null) healthScoreText.text   = $"Digestion Health    {healthRatio * 100f:F0}";
+        if (tailScoreText     != null) tailScoreText.text     = $"Food Absorbed       {tailCount}";
         if (nutrientScoreText != null) nutrientScoreText.text = $"Nutrients Collected {nutrientCount}";
     }
 
@@ -103,24 +91,12 @@ public class ResultUI : MonoBehaviour
     {
         yield return new WaitForSeconds(revealDelay);
         if (resultPanel != null) resultPanel.SetActive(true);
-
         if (gradeText != null)       { gradeText.text = "D"; gradeText.color = Color.gray; }
         if (poopNameText != null)    poopNameText.text    = "Bad Poop";
         if (descriptionText != null) descriptionText.text = "Try again!";
         if (scoreText != null)       scoreText.text       = "0 pts";
     }
 
-    private void OnRetry()
-    {
-        SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
-    }
-
-    private void OnNext()
-    {
-        int next = SceneManager.GetActiveScene().buildIndex + 1;
-        if (next < SceneManager.sceneCountInBuildSettings)
-            SceneManager.LoadScene(next);
-        else
-            SceneManager.LoadScene(0);
-    }
+    private void OnRetry() => SceneController.Instance?.ReloadCurrentStage();
+    private void OnNext()  => SceneController.Instance?.LoadNextStage();
 }

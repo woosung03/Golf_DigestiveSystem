@@ -15,7 +15,12 @@ public class GradeSystem : MonoBehaviour
     private int nutrientCount = 0;
     private int maxNutrientCount = 5;
 
+    // 씬 누적 데이터 (전체 스테이지 통산)
+    private int totalNutrientCount = 0;
+    private int totalTailCount = 0;
+
     public int NutrientCount => nutrientCount;
+    public int TotalNutrientCount => totalNutrientCount;
 
     public enum FinalGrade { S, A, B, C, D }
 
@@ -23,8 +28,10 @@ public class GradeSystem : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        DontDestroyOnLoad(gameObject);
     }
 
+    /// <summary>스테이지 시작 시 초기화 (누적 데이터는 유지)</summary>
     public void Init(int totalNutrients)
     {
         nutrientCount = 0;
@@ -34,10 +41,13 @@ public class GradeSystem : MonoBehaviour
     public void AddNutrient()
     {
         nutrientCount++;
+        totalNutrientCount++;
     }
 
     public float CalculateFinalScore(float healthRatio, int tailCount)
     {
+        totalTailCount += tailCount;
+
         float healthScore   = healthRatio * 100f;
         float tailScore     = Mathf.Clamp01((float)tailCount / maxTailForFullScore) * 100f;
         float nutrientScore = Mathf.Clamp01((float)nutrientCount / maxNutrientCount) * 100f;

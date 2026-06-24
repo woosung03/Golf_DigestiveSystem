@@ -1,9 +1,5 @@
 using UnityEngine;
 
-/// <summary>
-/// 음식 건강도 관리 - 공 색변화 + 사운드 피드백 연동
-/// 건강도에 따라 공 색이 노랑 → 주황 → 갈색 → 녹색 → 검정 으로 변함
-/// </summary>
 public class HealthManager : MonoBehaviour
 {
     public static HealthManager Instance { get; private set; }
@@ -16,21 +12,20 @@ public class HealthManager : MonoBehaviour
     [SerializeField] private SpriteRenderer foodBallRenderer;
 
     [Header("Health Colors")]
-    [SerializeField] private Color colorHealthy    = new Color(1f,   0.92f, 0.2f);  // 노랑 (100%)
-    [SerializeField] private Color colorGood       = new Color(1f,   0.6f,  0.1f);  // 주황 (75%)
-    [SerializeField] private Color colorNeutral    = new Color(0.55f,0.27f, 0.07f); // 갈색 (50%)
-    [SerializeField] private Color colorBad        = new Color(0.2f, 0.6f,  0.1f);  // 녹색 (25%)
-    [SerializeField] private Color colorCritical   = new Color(0.1f, 0.1f,  0.1f);  // 검정 (0%)
+    [SerializeField] private Color colorHealthy  = new Color(1f,    0.92f, 0.2f);
+    [SerializeField] private Color colorGood     = new Color(1f,    0.6f,  0.1f);
+    [SerializeField] private Color colorNeutral  = new Color(0.55f, 0.27f, 0.07f);
+    [SerializeField] private Color colorBad      = new Color(0.2f,  0.6f,  0.1f);
+    [SerializeField] private Color colorCritical = new Color(0.1f,  0.1f,  0.1f);
 
     [Header("Sound Effects")]
     [SerializeField] private AudioSource audioSource;
-    [SerializeField] private AudioClip soundGoodDigestion;  // 좋은 소화 (냠냠)
-    [SerializeField] private AudioClip soundBadDigestion;   // 나쁜 소화 (으엑)
-    [SerializeField] private AudioClip soundNutrientGet;    // 영양소 획득
-    [SerializeField] private AudioClip soundHazardHit;      // 위험 구역 충돌
+    [SerializeField] private AudioClip soundGoodDigestion;
+    [SerializeField] private AudioClip soundBadDigestion;
+    [SerializeField] private AudioClip soundNutrientGet;
+    [SerializeField] private AudioClip soundHazardHit;
 
-    // 이벤트
-    public System.Action<float> OnHealthChanged;  // 현재 health 비율 (0~1)
+    public System.Action<float> OnHealthChanged;
     public System.Action<HealthGrade> OnGradeChanged;
 
     public float HealthRatio => currentHealth / maxHealth;
@@ -39,29 +34,31 @@ public class HealthManager : MonoBehaviour
 
     private HealthGrade lastGrade = HealthGrade.Healthy;
 
-    public enum HealthGrade
-    {
-        Healthy,   // 100~76%
-        Good,      // 75~51%
-        Neutral,   // 50~26%
-        Bad,       // 25~11%
-        Critical   // 10~0%
-    }
+    public enum HealthGrade { Healthy, Good, Neutral, Bad, Critical }
 
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+        DontDestroyOnLoad(gameObject);
     }
 
     private void Start()
     {
+        // 씬 전환 후 새 FoodBall SpriteRenderer 찾기
+        if (foodBallRenderer == null)
+            foodBallRenderer = FindFirstObjectByType<FoodBall>()?.GetComponent<SpriteRenderer>();
         UpdateVisuals();
     }
 
-    // ── 외부에서 호출하는 메서드 ──────────────────────────
+    /// <summary>씬 전환 시 건강도 초기화 + 새 참조 갱신</summary>
+    public void ResetForNewScene()
+    {
+        currentHealth = maxHealth;
+        foodBallRenderer = FindFirstObjectByType<FoodBall>()?.GetComponent<SpriteRenderer>();
+        UpdateVisuals();
+    }
 
-    /// <summary>좋은 소화 행동 (위액 통과, 영양소 흡수 등)</summary>
     public void GainHealth(float amount, bool isNutrient = false)
     {
         currentHealth = Mathf.Clamp(currentHealth + amount, 0f, maxHealth);
@@ -70,7 +67,6 @@ public class HealthManager : MonoBehaviour
         NotifyChange();
     }
 
-    /// <summary>나쁜 소화 행동 (포크 찔림, 과다 자극 등)</summary>
     public void LoseHealth(float amount, bool isHazard = false)
     {
         currentHealth = Mathf.Clamp(currentHealth - amount, 0f, maxHealth);
@@ -79,18 +75,17 @@ public class HealthManager : MonoBehaviour
         NotifyChange();
     }
 
-    // ── 내부 처리 ─────────────────────────────────────────
-
     private void UpdateVisuals()
     {
-        if (foodBallRenderer == null) return;
-        foodBallRenderer.color = GetHealthColor(HealthRatio);
+        if (foodBallRenderer == null)
+            foodBallRenderer = FindFirstObjectByType<FoodBall>()?.GetComponent<SpriteRenderer>();
+        if (foodBallRenderer != null)
+            foodBallRenderer.color = GetHealthColor(HealthRatio);
     }
 
     private void NotifyChange()
     {
         OnHealthChanged?.Invoke(HealthRatio);
-
         HealthGrade grade = GetGrade(HealthRatio);
         if (grade != lastGrade)
         {
@@ -101,15 +96,10 @@ public class HealthManager : MonoBehaviour
 
     private Color GetHealthColor(float ratio)
     {
-        // 구간별 Lerp
-        if (ratio >= 0.75f)
-            return Color.Lerp(colorGood, colorHealthy, (ratio - 0.75f) / 0.25f);
-        else if (ratio >= 0.50f)
-            return Color.Lerp(colorNeutral, colorGood, (ratio - 0.50f) / 0.25f);
-        else if (ratio >= 0.25f)
-            return Color.Lerp(colorBad, colorNeutral, (ratio - 0.25f) / 0.25f);
-        else
-            return Color.Lerp(colorCritical, colorBad, ratio / 0.25f);
+        if (ratio >= 0.75f) return Color.Lerp(colorGood,     colorHealthy, (ratio - 0.75f) / 0.25f);
+        if (ratio >= 0.50f) return Color.Lerp(colorNeutral,  colorGood,    (ratio - 0.50f) / 0.25f);
+        if (ratio >= 0.25f) return Color.Lerp(colorBad,      colorNeutral, (ratio - 0.25f) / 0.25f);
+        return Color.Lerp(colorCritical, colorBad, ratio / 0.25f);
     }
 
     private HealthGrade GetGrade(float ratio)
@@ -125,19 +115,5 @@ public class HealthManager : MonoBehaviour
     {
         if (audioSource == null || clip == null) return;
         audioSource.PlayOneShot(clip);
-    }
-
-    /// <summary>스테이지 클리어 시 최종 등급 반환</summary>
-    public string GetFinalGradeText()
-    {
-        return CurrentGrade switch
-        {
-            HealthGrade.Healthy  => "💛 황금변",
-            HealthGrade.Good     => "🟤 건강변",
-            HealthGrade.Neutral  => "💩 보통변",
-            HealthGrade.Bad      => "🟢 이상변",
-            HealthGrade.Critical => "☠️ 불량변",
-            _ => "💩 보통변"
-        };
     }
 }

@@ -4,8 +4,9 @@ using System.Collections.Generic;
 
 /// <summary>
 /// 꼬리 체인 관리자
-/// - Tail 레이어(7번)로 꼬리끼리 충돌 무시, 지형과는 충돌 유지
-/// - 꼬리 생성 시 일정 시간 동안 Default 레이어(지형)와 충돌 무시 → 끼임 방지
+/// - 스폰 시 중력 0 + 머리 오른쪽에 가로로 생성
+/// - 일정 시간 후 중력 복구 → 자연스럽게 아래로 늘어짐
+/// - Tail 레이어(7번)로 꼬리끼리 충돌 무시
 /// </summary>
 public class TailChain : MonoBehaviour
 {
@@ -13,12 +14,12 @@ public class TailChain : MonoBehaviour
     [SerializeField] private FoodBall headBall;
 
     [Header("Tail Settings")]
-    [SerializeField] private float segmentRadius = 0.3f;
-    [SerializeField] private float segmentMass = 0.8f;
+    [SerializeField] private float segmentRadius   = 0.3f;
+    [SerializeField] private float segmentMass     = 0.8f;
     [SerializeField] private float segmentDistance = 0.4f;
 
     [Header("Spawn Settings")]
-    [SerializeField] private float spawnIgnoreCollisionTime = 0.6f; // 스폰 후 지형 무시 시간
+    [SerializeField] private float gravityRestoreDelay = 0.8f; // 중력 복구까지 대기 시간
 
     [Header("Tail Visual")]
     [SerializeField] private Color tailColor = new Color(0.55f, 0.27f, 0.07f);
@@ -29,7 +30,6 @@ public class TailChain : MonoBehaviour
     private int headSortingOrder = 0;
 
     private const int TAIL_LAYER = 7;
-    private const int DEFAULT_LAYER = 0;
 
     private void Awake()
     {
@@ -42,7 +42,6 @@ public class TailChain : MonoBehaviour
         var headSr = headBall?.GetComponent<SpriteRenderer>();
         if (headSr != null) headSortingOrder = headSr.sortingOrder;
 
-        // 꼬리끼리 충돌 무시
         Physics2D.IgnoreLayerCollision(TAIL_LAYER, TAIL_LAYER, true);
     }
 
@@ -56,7 +55,12 @@ public class TailChain : MonoBehaviour
 
         int index = segments.Count;
         Vector2 headPos = headBall.transform.position;
-        Vector2 spawnPos = new Vector2(headPos.x, headPos.y - segmentDistance * (index + 1));
+
+        // 머리 왼쪽 방향으로 가로 배치 (지형 끼임 방지)
+        Vector2 spawnPos = new Vector2(
+            headPos.x - segmentDistance * (index + 1),
+            headPos.y
+        );
 
         GameObject seg = new GameObject($"Tail_{index}");
         seg.transform.position = spawnPos;
@@ -71,10 +75,10 @@ public class TailChain : MonoBehaviour
         float scale = segmentRadius * 2f;
         seg.transform.localScale = new Vector3(scale, scale, 1f);
 
-        // 물리
+        // 물리 - 처음엔 중력 0
         var rb = seg.AddComponent<Rigidbody2D>();
         rb.mass = segmentMass;
-        rb.gravityScale = 1f;
+        rb.gravityScale = 0f; // 스폰 직후 중력 없음
         rb.linearDamping = 0.8f;
         rb.angularDamping = 0.8f;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
@@ -92,33 +96,28 @@ public class TailChain : MonoBehaviour
         var hinge = seg.AddComponent<HingeJoint2D>();
         hinge.connectedBody = anchorRb;
         hinge.autoConfigureConnectedAnchor = false;
-        hinge.anchor = new Vector2(0f, 0.5f);
-        hinge.connectedAnchor = new Vector2(0f, -0.5f);
+        hinge.anchor = new Vector2(0.5f, 0f);       // 이 세그먼트 오른쪽
+        hinge.connectedAnchor = new Vector2(-0.5f, 0f); // 앞 세그먼트 왼쪽
 
         segments.Add(seg);
 
-        // 스폰 직후 지형 충돌 무시 → 일정 시간 후 복구
-        StartCoroutine(IgnoreGroundTemporarily(col));
+        // 일정 시간 후 중력 복구
+        StartCoroutine(RestoreGravity(rb));
 
         Debug.Log($"[TailChain] 꼬리 추가 → 총 {segments.Count}개");
     }
 
     /// <summary>
-    /// 스폰 후 spawnIgnoreCollisionTime 동안 Default 레이어(지형)와 충돌 무시
-    /// 시간 지나면 충돌 복구
+    /// 스폰 후 gravityRestoreDelay 초 뒤 중력 복구
+    /// HingeJoint로 연결돼 있어서 자연스럽게 아래로 늘어짐
     /// </summary>
-    private IEnumerator IgnoreGroundTemporarily(Collider2D col)
+    private IEnumerator RestoreGravity(Rigidbody2D rb)
     {
-        // 현재 씬의 모든 Default 레이어 콜라이더와 충돌 무시
-        Physics2D.IgnoreLayerCollision(TAIL_LAYER, DEFAULT_LAYER, true);
-
-        yield return new WaitForSeconds(spawnIgnoreCollisionTime);
-
-        // 충돌 복구 (다른 꼬리들도 이미 안착했을 시점)
-        Physics2D.IgnoreLayerCollision(TAIL_LAYER, DEFAULT_LAYER, false);
+        yield return new WaitForSeconds(gravityRestoreDelay);
+        if (rb != null)
+            rb.gravityScale = 1f;
     }
 
-    /// <summary>인덱스로 세그먼트 Rigidbody 반환</summary>
     public Rigidbody2D GetSegmentRb(int index)
     {
         if (index < 0 || index >= segments.Count) return null;
