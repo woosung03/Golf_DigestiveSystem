@@ -2,17 +2,16 @@ using UnityEngine;
 
 /// <summary>
 /// Stage 1 - 입/식도 코스 빌더
-/// 프리팹 참조해서 음식/장애물 자동 배치
+/// 프리팹 참조해서 음식/치아/장애물 자동 배치
 /// 
 /// 구조:
 ///  [시작: 입 구간] 가로 이동
 ///  ●──────────────────╮  ← 윗 천장
 ///  ════════════════╮  │  ← 아랫 바닥 (오른쪽에서 꺾임)
 ///                  │  │
-///                  │  │  ← 식도 (세로 구간, 좁은 통로)
-///                  │  │
+///                  │  │  ← 식도 (세로 구간)
 ///                  ╰──╯
-///                    ↓ [골] 위 입구
+///                    ↓ [골]
 /// </summary>
 public class CourseBuilder : MonoBehaviour
 {
@@ -29,16 +28,19 @@ public class CourseBuilder : MonoBehaviour
     [SerializeField] private float esophagusWidth = 3f;
 
     [Header("Food Prefabs")]
-    [SerializeField] private GameObject[] goodFoodPrefabs;  // 건강한 음식 (꼬리 +, 건강도 +)
-    [SerializeField] private GameObject[] badFoodPrefabs;   // 나쁜 음식 (꼬리 +, 건강도 -)
+    [SerializeField] private GameObject[] goodFoodPrefabs;
+    [SerializeField] private GameObject[] badFoodPrefabs;
 
-    [Header("Hazard Prefabs")]
-    [SerializeField] private GameObject[] hazardPrefabs;    // 장애물 (건강도 -)
+    [Header("Tooth Settings")]
+    [SerializeField] private int   toothPairCount  = 3;    // 치아 쌍 개수
+    [SerializeField] private float toothWidth      = 1.2f; // 어금니 너비
+    [SerializeField] private float toothHeight     = 0.6f; // 어금니 높이
+    [SerializeField] private float toothGap        = 1.0f; // 위아래 치아 사이 간격
+    [SerializeField] private Color toothColor      = Color.white;
 
     [Header("Spawn Settings")]
     [SerializeField] private int goodFoodCount = 4;
     [SerializeField] private int badFoodCount  = 2;
-    [SerializeField] private int hazardCount   = 2;
 
     // 좌표 캐싱
     private float mouthLeft, mouthRight, mouthTop, mouthBottom;
@@ -56,10 +58,11 @@ public class CourseBuilder : MonoBehaviour
 
         CalculateCoords();
         BuildWalls();
-        SpawnItems();
+        SpawnTeeth();
+        SpawnFood();
         PlaceGoal(new Vector2((esoLeft + esoRight) / 2f, esoBottom + 0.5f));
 
-        Debug.Log($"[CourseBuilder] Stage1 생성 완료 | 시작: ({mouthLeft + 1f}, {mouthBottom + 0.5f})");
+        Debug.Log($"[CourseBuilder] Stage1 생성 완료");
     }
 
     private void CalculateCoords()
@@ -114,35 +117,76 @@ public class CourseBuilder : MonoBehaviour
         }, groundMaterial);
     }
 
-    private void SpawnItems()
+    /// <summary>
+    /// 입 구간에 치아 쌍 배치
+    /// 위 치아: 천장에서 아래로 돌출
+    /// 아래 치아: 바닥에서 위로 돌출
+    /// 사이 간격(toothGap)으로 공이 통과
+    /// </summary>
+    private void SpawnTeeth()
     {
-        // 입 구간 X 범위 (왼쪽 벽 ~ 식도 왼쪽 벽)
-        float spawnXMin = mouthLeft  + 1f;
-        float spawnXMax = esoLeft    - 1f;
-        float spawnY    = mouthBottom + 0.6f; // 바닥 바로 위
+        float spawnXMin = mouthLeft  + 2f;
+        float spawnXMax = esoLeft    - 2f;
+        float step = (spawnXMax - spawnXMin) / (toothPairCount + 1);
 
-        // 좋은 음식 배치 (균등 간격)
-        SpawnPrefabsInRow(goodFoodPrefabs, goodFoodCount,
-            spawnXMin, spawnXMax, spawnY);
+        float mouthCenter = (mouthTop + mouthBottom) / 2f;
+        float upperToothBottom = mouthCenter + toothGap / 2f; // 위 치아 하단
+        float lowerToothTop    = mouthCenter - toothGap / 2f; // 아래 치아 상단
 
-        // 나쁜 음식 배치 (좋은 음식 사이사이)
-        SpawnPrefabsInRow(badFoodPrefabs, badFoodCount,
-            spawnXMin + 1f, spawnXMax - 1f, spawnY + 1f);
+        for (int i = 0; i < toothPairCount; i++)
+        {
+            float x = spawnXMin + step * (i + 1);
 
-        // 식도 구간 장애물 배치
-        float esoSpawnX = (esoLeft + esoRight) / 2f;
-        float esoSpawnYMin = esoTop   - 1f;
-        float esoSpawnYMax = esoBottom + 2f;
-        SpawnPrefabsInColumn(hazardPrefabs, hazardCount,
-            esoSpawnX, esoSpawnYMin, esoSpawnYMax);
+            // 위 치아 (천장에서 아래로)
+            CreateTooth($"UpperTooth_{i}", x,
+                upperToothBottom + toothHeight / 2f,  // 중심 Y
+                true);
+
+            // 아래 치아 (바닥에서 위로)
+            CreateTooth($"LowerTooth_{i}", x,
+                lowerToothTop - toothHeight / 2f,     // 중심 Y
+                false);
+        }
     }
 
-    /// <summary>가로 방향으로 균등 배치</summary>
+    private void CreateTooth(string objName, float x, float centerY, bool isUpper)
+    {
+        GameObject go = new GameObject(objName);
+        go.transform.parent = transform;
+        go.transform.position = new Vector3(x, centerY, 0f);
+        go.layer = LayerMask.NameToLayer("Default");
+        go.tag = "Untagged";
+
+        // 비주얼
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.color = toothColor;
+        sr.sortingOrder = 1;
+        // 기본 흰 사각형 스프라이트 (나중에 치아 스프라이트로 교체)
+        sr.sprite = CreateRectSprite();
+        go.transform.localScale = new Vector3(toothWidth, toothHeight, 1f);
+
+        // 콜라이더
+        var col = go.AddComponent<BoxCollider2D>();
+        col.size = Vector2.one; // localScale으로 크기 조정
+
+        // Tooth 스크립트
+        var tooth = go.AddComponent<Tooth>();
+    }
+
+    private void SpawnFood()
+    {
+        float spawnXMin = mouthLeft  + 1f;
+        float spawnXMax = esoLeft    - 1f;
+        float spawnY    = mouthBottom + 0.5f;
+
+        SpawnPrefabsInRow(goodFoodPrefabs, goodFoodCount, spawnXMin, spawnXMax, spawnY);
+        SpawnPrefabsInRow(badFoodPrefabs,  badFoodCount,  spawnXMin, spawnXMax, spawnY + 1.2f);
+    }
+
     private void SpawnPrefabsInRow(GameObject[] prefabs, int count,
         float xMin, float xMax, float y)
     {
         if (prefabs == null || prefabs.Length == 0 || count == 0) return;
-
         float step = (xMax - xMin) / (count + 1);
         for (int i = 0; i < count; i++)
         {
@@ -152,26 +196,10 @@ public class CourseBuilder : MonoBehaviour
         }
     }
 
-    /// <summary>세로 방향으로 균등 배치</summary>
-    private void SpawnPrefabsInColumn(GameObject[] prefabs, int count,
-        float x, float yMin, float yMax)
-    {
-        if (prefabs == null || prefabs.Length == 0 || count == 0) return;
-
-        float step = (yMax - yMin) / (count + 1);
-        for (int i = 0; i < count; i++)
-        {
-            float y = yMin + step * (i + 1);
-            GameObject prefab = prefabs[Random.Range(0, prefabs.Length)];
-            SpawnPrefab(prefab, new Vector2(x, y));
-        }
-    }
-
     private void SpawnPrefab(GameObject prefab, Vector2 pos)
     {
         if (prefab == null) return;
-        GameObject go = Instantiate(prefab, pos, Quaternion.identity);
-        go.transform.parent = transform;
+        Instantiate(prefab, pos, Quaternion.identity).transform.parent = transform;
     }
 
     private void CreateEdge(string objName, Vector2[] points, PhysicsMaterial2D mat)
@@ -203,5 +231,13 @@ public class CourseBuilder : MonoBehaviour
         col.size = new Vector2(esophagusWidth, 1f);
 
         goalGO.AddComponent<StageGoal>();
+    }
+
+    private Sprite CreateRectSprite()
+    {
+        Texture2D tex = new Texture2D(1, 1);
+        tex.SetPixel(0, 0, Color.white);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f), 1f);
     }
 }
