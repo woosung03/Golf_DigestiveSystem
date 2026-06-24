@@ -1,10 +1,11 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
 
 /// <summary>
 /// 꼬리 체인 관리자
 /// - Tail 레이어(7번)로 꼬리끼리 충돌 무시, 지형과는 충돌 유지
-/// - GetSegmentRb()로 각 세그먼트 반환 → ShotController가 전체에 힘을 가함
+/// - 꼬리 생성 시 일정 시간 동안 Default 레이어(지형)와 충돌 무시 → 끼임 방지
 /// </summary>
 public class TailChain : MonoBehaviour
 {
@@ -16,6 +17,9 @@ public class TailChain : MonoBehaviour
     [SerializeField] private float segmentMass = 0.8f;
     [SerializeField] private float segmentDistance = 0.4f;
 
+    [Header("Spawn Settings")]
+    [SerializeField] private float spawnIgnoreCollisionTime = 0.6f; // 스폰 후 지형 무시 시간
+
     [Header("Tail Visual")]
     [SerializeField] private Color tailColor = new Color(0.55f, 0.27f, 0.07f);
     [SerializeField] private Sprite tailSprite;
@@ -25,6 +29,7 @@ public class TailChain : MonoBehaviour
     private int headSortingOrder = 0;
 
     private const int TAIL_LAYER = 7;
+    private const int DEFAULT_LAYER = 0;
 
     private void Awake()
     {
@@ -37,6 +42,7 @@ public class TailChain : MonoBehaviour
         var headSr = headBall?.GetComponent<SpriteRenderer>();
         if (headSr != null) headSortingOrder = headSr.sortingOrder;
 
+        // 꼬리끼리 충돌 무시
         Physics2D.IgnoreLayerCollision(TAIL_LAYER, TAIL_LAYER, true);
     }
 
@@ -57,6 +63,7 @@ public class TailChain : MonoBehaviour
         seg.layer = TAIL_LAYER;
         seg.tag = "Food";
 
+        // 비주얼
         var sr = seg.AddComponent<SpriteRenderer>();
         sr.sprite = GetSprite();
         sr.color = tailColor;
@@ -64,6 +71,7 @@ public class TailChain : MonoBehaviour
         float scale = segmentRadius * 2f;
         seg.transform.localScale = new Vector3(scale, scale, 1f);
 
+        // 물리
         var rb = seg.AddComponent<Rigidbody2D>();
         rb.mass = segmentMass;
         rb.gravityScale = 1f;
@@ -76,9 +84,11 @@ public class TailChain : MonoBehaviour
         col.radius = 0.5f;
         col.sharedMaterial = tailMat;
 
+        // 머리와 충돌 무시
         var headCol = headBall.GetComponent<Collider2D>();
         if (headCol != null) Physics2D.IgnoreCollision(col, headCol, true);
 
+        // HingeJoint2D 연결
         var hinge = seg.AddComponent<HingeJoint2D>();
         hinge.connectedBody = anchorRb;
         hinge.autoConfigureConnectedAnchor = false;
@@ -86,7 +96,26 @@ public class TailChain : MonoBehaviour
         hinge.connectedAnchor = new Vector2(0f, -0.5f);
 
         segments.Add(seg);
+
+        // 스폰 직후 지형 충돌 무시 → 일정 시간 후 복구
+        StartCoroutine(IgnoreGroundTemporarily(col));
+
         Debug.Log($"[TailChain] 꼬리 추가 → 총 {segments.Count}개");
+    }
+
+    /// <summary>
+    /// 스폰 후 spawnIgnoreCollisionTime 동안 Default 레이어(지형)와 충돌 무시
+    /// 시간 지나면 충돌 복구
+    /// </summary>
+    private IEnumerator IgnoreGroundTemporarily(Collider2D col)
+    {
+        // 현재 씬의 모든 Default 레이어 콜라이더와 충돌 무시
+        Physics2D.IgnoreLayerCollision(TAIL_LAYER, DEFAULT_LAYER, true);
+
+        yield return new WaitForSeconds(spawnIgnoreCollisionTime);
+
+        // 충돌 복구 (다른 꼬리들도 이미 안착했을 시점)
+        Physics2D.IgnoreLayerCollision(TAIL_LAYER, DEFAULT_LAYER, false);
     }
 
     /// <summary>인덱스로 세그먼트 Rigidbody 반환</summary>
