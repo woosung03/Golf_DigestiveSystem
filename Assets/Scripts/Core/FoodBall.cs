@@ -35,7 +35,7 @@ public class FoodBall : MonoBehaviour
         rb.gravityScale = 1f;
         rb.freezeRotation = false;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
-        rb.sleepMode = RigidbodySleepMode2D.NeverSleep; // 수동으로 정지 감지
+        rb.sleepMode = RigidbodySleepMode2D.NeverSleep;
 
         var mat = new PhysicsMaterial2D("FoodMat")
         {
@@ -50,14 +50,18 @@ public class FoodBall : MonoBehaviour
         DetectStopped();
     }
 
-    /// <summary>
-    /// 방향 + 파워(Impulse)로 발사
-    /// </summary>
+    /// <summary>머리에 직접 힘을 가하는 발사 (꼬리 없을 때)</summary>
     public void Launch(Vector2 direction, float power)
     {
         rb.linearVelocity = Vector2.zero;
         rb.angularVelocity = 0f;
         rb.AddForce(direction.normalized * power, ForceMode2D.Impulse);
+        NotifyLaunched();
+    }
+
+    /// <summary>외부(ShotController)에서 다른 Rigidbody에 힘을 준 뒤 호출</summary>
+    public void NotifyLaunched()
+    {
         isMoving = true;
         stillTimer = 0f;
         OnLaunched?.Invoke();
