@@ -11,6 +11,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Stage1_Mouth.unity
     guid: 1ec0adfabcd2def4cbe37ff3ab28a466
+  - enabled: 1
+    path: Assets/Scenes/Stage2_Stomach.unity
+    guid: 85643ff6f19a24d49b88bdce9dee32db
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0

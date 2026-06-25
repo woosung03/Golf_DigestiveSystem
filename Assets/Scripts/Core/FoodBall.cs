@@ -9,13 +9,14 @@ using UnityEngine;
 public class FoodBall : MonoBehaviour
 {
     [Header("Physics")]
-    [SerializeField] private float sleepThreshold = 0.05f;
-    [SerializeField] private float sleepDelay = 0.5f;
+    [SerializeField] private float sleepThreshold = 0.3f;  // 높을수록 빨리 멈춤
+    [SerializeField] private float sleepDelay = 0.3f;      // 짧을수록 빨리 멈춤
+    [SerializeField] private float linearDamping = 1.5f;   // 높을수록 빨리 느려짐
 
     [Header("Food Stats")]
     [SerializeField] private float mass = 1f;
-    [SerializeField] private float bounciness = 0.6f;
-    [SerializeField] private float friction = 0.4f;
+    [SerializeField] private float bounciness = 0.4f;
+    [SerializeField] private float friction = 0.6f;
 
     private Rigidbody2D rb;
     private bool isMoving = false;
@@ -33,6 +34,7 @@ public class FoodBall : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         rb.mass = mass;
         rb.gravityScale = 1f;
+        rb.linearDamping = linearDamping;
         rb.freezeRotation = false;
         rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         rb.sleepMode = RigidbodySleepMode2D.NeverSleep;
@@ -50,7 +52,6 @@ public class FoodBall : MonoBehaviour
         DetectStopped();
     }
 
-    /// <summary>머리에 직접 힘을 가하는 발사 (꼬리 없을 때)</summary>
     public void Launch(Vector2 direction, float power)
     {
         rb.linearVelocity = Vector2.zero;
@@ -59,7 +60,6 @@ public class FoodBall : MonoBehaviour
         NotifyLaunched();
     }
 
-    /// <summary>외부(ShotController)에서 다른 Rigidbody에 힘을 준 뒤 호출</summary>
     public void NotifyLaunched()
     {
         isMoving = true;
